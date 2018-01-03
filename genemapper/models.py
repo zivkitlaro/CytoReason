@@ -2,7 +2,7 @@ from django.db import models
 import json
 
 
-# from genemapper.models import GeneInfo, Entres, Alias, Ensembl, Converter
+# from genemapper.models import GeneInfo, Entrez, Alias, Ensembl, Converter
 # g = GeneInfo.objects.first()
 # c = Converter()
 # c.find_genes_from_symbol('A1BG', False)
@@ -24,14 +24,11 @@ class Converter():
 
     def find_genes_from_symbol(self, value: str, searchContained: bool) -> object:
         candidates = list()
-        score = 0
+
         if searchContained:
             genes = GeneInfo.objects.filter(symbol__icontains=value)
         else:
             genes = GeneInfo.objects.filter(symbol=value)
-
-        if len(genes) == 1:
-            score += 80
 
         for gene in genes:
             candidates.append(gene)
@@ -49,8 +46,6 @@ class Converter():
             gene_ids_from_aliases.remove(existingId)
 
         genes_from_aliases = GeneInfo.objects.filter(id__in=gene_ids_from_aliases)
-        if len(genes_from_aliases) <= 1:
-            score += 20
 
         for gene in genes_from_aliases:
             if gene not in candidates:
@@ -65,26 +60,59 @@ class Converter():
 
     def convert_symbol(self, value):
 
-        total = list()
+        dictionaries = list()
         genes, score = self.find_genes_from_symbol(value, False)
         for gene in genes:
-            total.append(gene.dictionary)
+            dictionaries.append(gene.dictionary)
 
-        print('input symbol:' + value + ', score: ' + str(score) + ' result: ' + json.dumps(total))
+        print('input symbol:' + value)
+        print('score: ' + str(score))
+        print('result: ' + json.dumps(dictionaries))
+
         return total, score
 
     def convert_name(self, value):
 
+        dictionaries = list()
         genes = GeneInfo.objects.filter(gene_name__icontains=value)
+
+        for gene in genes:
+            dictionaries.append(gene.dictionary)
+
+        if len(genes) == 0:
+            return dictionaries, 0
+
         score = 100 / len(genes)
 
-        return 'name:' + value
+        print('input name:' + value)
+        print('score: ' + str(score))
+        print('result: ' + json.dumps(dictionaries))
+
+        return dictionaries, score
 
     def convert_alias(self, value):
         return 'alias:' + value
 
     def convert_entrez(self, value):
-        return 'entrez:' + value
+
+        entrezes = Entrez.objects.filter(entrez_id=value)
+        genes = list()
+        dictionaries = list()
+        for entrez in entrezes:
+            if entrez.gene not in genes:
+                genes.append(entrez.gene)
+                dictionaries.append(entrez.gene.dictionary)
+
+        if len(genes) == 0:
+            return dictionaries, 0
+
+        score = 100 / len(genes)
+
+        print('input entrez:' + value)
+        print('score: ' + str(score))
+        print('result: ' + json.dumps(dictionaries))
+
+        return dictionaries, score
 
     def convert_ensembl(self, value):
         return 'ensembl:' + value
@@ -112,6 +140,9 @@ class GeneInfo(models.Model):
     @property
     def ensemblId(self):
         ensembl = self.ensembl.all()
+        if len(ensembl) == 0:
+            return '-'
+
         if len(ensembl) > 1:
             assert 'should be only 1'
         return ensembl.first().ensembl_id
@@ -120,7 +151,6 @@ class GeneInfo(models.Model):
     def aliases_symbols(self):
         aliases = list(self.aliases.all().values_list('alias_symbol', flat=True))
         aliases.remove(self.symbol)
-        aliases.insert(0, '*' + self.symbol)
         return aliases
 
     # def get_absolute_url(self):
@@ -128,10 +158,10 @@ class GeneInfo(models.Model):
 
     @property
     def dictionary(self):
-        return {'gene_id': self.id, 'name': self.gene_name, 'aliases': self.aliases_symbols,
+        return {'gene_id': self.id, 'name': self.gene_name, 'symbol': self.symbol, 'aliases': self.aliases_symbols,
                       'entrez_id': self.entrezId, 'ensembl_id': self.ensemblId}
 
-class Entres(models.Model):
+class Entrez(models.Model):
     id = models.IntegerField(primary_key=True)
     gene = models.ForeignKey(GeneInfo, related_name='entrez', primary_key=True, on_delete=models.CASCADE)
     entrez_id = models.TextField()
