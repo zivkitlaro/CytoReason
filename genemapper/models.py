@@ -69,7 +69,7 @@ class Converter():
         print('score: ' + str(score))
         print('result: ' + json.dumps(dictionaries))
 
-        return total, score
+        return dictionaries, score
 
     def convert_name(self, value):
 
