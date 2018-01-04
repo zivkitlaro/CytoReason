@@ -90,8 +90,8 @@ class Converter():
 
         return dictionaries, score
 
-    def convert_alias(self, value):
-        return 'alias:' + value
+    # def convert_alias(self, value): # it seems that alias and symbol are interchangeable
+
 
     def convert_entrez(self, value):
 
@@ -114,8 +114,25 @@ class Converter():
 
         return dictionaries, score
 
-    def convert_ensembl(self, value):
-        return 'ensembl:' + value
+    def convert_ensembl(self, value: str):
+        ensembles = Ensembl.objects.filter(ensembl_id__icontains=value)
+        genes = list()
+        dictionaries = list()
+        for ensembl in ensembles:
+            if ensembl.gene not in genes:
+                genes.append(ensembl.gene)
+                dictionaries.append(ensembl.gene.dictionary)
+
+        if len(genes) == 0:
+            return dictionaries, 0
+
+        score = 100 / len(genes)
+
+        print('input ensembl:' + value)
+        print('score: ' + str(score))
+        print('result: ' + json.dumps(dictionaries))
+
+        return dictionaries, score
 
 
 class GeneInfo(models.Model):
